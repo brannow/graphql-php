@@ -1,13 +1,13 @@
 {
-  "name": "webonyx/graphql-php",
-  "description": "A PHP port of GraphQL reference implementation",
+  "name": "brannow/graphql-php",
+  "description": "a Fork of the webonyx/graphql-php - A PHP port of GraphQL reference implementation",
   "license": "MIT",
   "type": "library",
   "keywords": [
     "graphql",
     "API"
   ],
-  "homepage": "https://github.com/webonyx/graphql-php",
+  "homepage": "https://github.com/brannow/graphql-php",
   "require": {
     "php": "^7.4 || ^8",
     "ext-json": "*",
