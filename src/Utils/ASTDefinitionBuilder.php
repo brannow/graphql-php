@@ -548,7 +548,7 @@ class ASTDefinitionBuilder
     }
 
     /** @throws InvariantViolation */
-    private function makeScalarDef(ScalarTypeDefinitionNode $def): CustomScalarType
+    private function makeScalarDef(ScalarTypeDefinitionNode $def): Type
     {
         $name = $def->name->value;
         /** @var array<ScalarTypeExtensionNode> $extensionASTNodes (proven by schema validation) */
