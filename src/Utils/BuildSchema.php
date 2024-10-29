@@ -17,6 +17,7 @@ use GraphQL\Type\Definition\Directive;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Schema;
 use GraphQL\Type\SchemaConfig;
+use GraphQL\Utils\CustomLoader\CustomTypeLoaderInterface;
 use GraphQL\Validator\DocumentValidator;
 
 /**
@@ -215,7 +216,8 @@ class BuildSchema
                 throw self::unknownType($typeName);
             },
             $this->typeConfigDecorator,
-            $this->fieldConfigDecorator
+            $this->fieldConfigDecorator,
+            (($this->options['customTypeLoader']??null) instanceof CustomTypeLoaderInterface ? $this->options['customTypeLoader'] : null)
         );
 
         $directives = \array_map(

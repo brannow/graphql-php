@@ -42,6 +42,7 @@ use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\OutputType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Definition\UnionType;
+use GraphQL\Utils\CustomLoader\CustomTypeLoaderInterface;
 
 /**
  * @see FieldDefinition, InputObjectField
@@ -65,6 +66,11 @@ class ASTDefinitionBuilder
      * @phpstan-var ResolveType
      */
     private $resolveType;
+
+    /**
+     * @var null|CustomTypeLoaderInterface
+     */
+    private ?CustomTypeLoaderInterface $customTypeLoader;
 
     /**
      * @var callable|null
@@ -100,13 +106,15 @@ class ASTDefinitionBuilder
         array $typeExtensionsMap,
         callable $resolveType,
         ?callable $typeConfigDecorator = null,
-        ?callable $fieldConfigDecorator = null
+        ?callable $fieldConfigDecorator = null,
+        ?CustomTypeLoaderInterface $customTypeLoader = null
     ) {
         $this->typeDefinitionsMap = $typeDefinitionsMap;
         $this->typeExtensionsMap = $typeExtensionsMap;
         $this->resolveType = $resolveType;
         $this->typeConfigDecorator = $typeConfigDecorator;
         $this->fieldConfigDecorator = $fieldConfigDecorator;
+        $this->customTypeLoader = $customTypeLoader;
 
         $this->cache = Type::builtInTypes();
     }
@@ -343,14 +351,20 @@ class ASTDefinitionBuilder
         $extensionASTNodes = $this->typeExtensionsMap[$name] ?? [];
         $allNodes = [$def, ...$extensionASTNodes];
 
-        return new ObjectType([
+        $config = [
             'name' => $name,
             'description' => $def->description->value ?? null,
             'fields' => fn (): array => $this->makeFieldDefMap($allNodes),
             'interfaces' => fn (): array => $this->makeImplementedInterfaces($allNodes),
             'astNode' => $def,
             'extensionASTNodes' => $extensionASTNodes,
-        ]);
+        ];
+
+        if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
+            return $this->customTypeLoader->getCustomType($name, $config);
+        }
+
+        return new ObjectType($config);
     }
 
     /**
@@ -489,13 +503,19 @@ class ASTDefinitionBuilder
             }
         }
 
-        return new EnumType([
+        $config = [
             'name' => $name,
             'description' => $def->description->value ?? null,
             'values' => $values,
             'astNode' => $def,
             'extensionASTNodes' => $extensionASTNodes,
-        ]);
+        ];
+
+        if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
+            return $this->customTypeLoader->getCustomType($name, $config);
+        }
+
+        return new EnumType($config);
     }
 
     /** @throws InvariantViolation */
@@ -534,13 +554,19 @@ class ASTDefinitionBuilder
         /** @var array<ScalarTypeExtensionNode> $extensionASTNodes (proven by schema validation) */
         $extensionASTNodes = $this->typeExtensionsMap[$name] ?? [];
 
-        return new CustomScalarType([
+        $config = [
             'name' => $name,
             'description' => $def->description->value ?? null,
             'serialize' => static fn ($value) => $value,
             'astNode' => $def,
             'extensionASTNodes' => $extensionASTNodes,
-        ]);
+        ];
+
+        if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
+            return $this->customTypeLoader->getCustomType($name, $config);
+        }
+
+        return new CustomScalarType($config);
     }
 
     /** @throws InvariantViolation */
@@ -550,13 +576,19 @@ class ASTDefinitionBuilder
         /** @var array<InputObjectTypeExtensionNode> $extensionASTNodes (proven by schema validation) */
         $extensionASTNodes = $this->typeExtensionsMap[$name] ?? [];
 
-        return new InputObjectType([
+        $config = [
             'name' => $name,
             'description' => $def->description->value ?? null,
             'fields' => fn (): array => $this->makeInputFields([$def, ...$extensionASTNodes]),
             'astNode' => $def,
             'extensionASTNodes' => $extensionASTNodes,
-        ]);
+        ];
+
+        if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
+            return $this->customTypeLoader->getCustomType($name, $config);
+        }
+
+        return new InputObjectType($config);
     }
 
     /**
@@ -568,6 +600,10 @@ class ASTDefinitionBuilder
      */
     private function makeSchemaDefFromConfig(Node $def, array $config): Type
     {
+        if ($this->customTypeLoader && !empty(($name = $config['name'] ?? null)) && $this->customTypeLoader->canProvideCustomType($name)) {
+            return $this->customTypeLoader->getCustomType($name, $config);
+        }
+
         switch (true) {
             case $def instanceof ObjectTypeDefinitionNode:
                 // @phpstan-ignore-next-line assume the config matches
