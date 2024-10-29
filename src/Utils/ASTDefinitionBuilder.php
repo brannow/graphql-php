@@ -559,7 +559,7 @@ class ASTDefinitionBuilder
             'description' => $def->description->value ?? null,
             'serialize' => static fn ($value) => $value,
             'astNode' => $def,
-            'extensionASTNodes' => $extensionASTNodes,
+            'extensionASTNodes' => $extensionASTNodes
         ];
 
         if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
