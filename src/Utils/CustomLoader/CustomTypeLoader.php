@@ -33,6 +33,11 @@ class CustomTypeLoader implements CustomTypeLoaderInterface
         return false;
     }
 
+    /**
+     * @param string $typeName
+     * @param array $config
+     * @return CustomScalarType|InputObjectType|ObjectType|EnumType|Type|null
+     */
     public function getCustomType(string $typeName, array $config)
     {
         if ($this->getCustomCallable) {
