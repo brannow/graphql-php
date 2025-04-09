@@ -473,8 +473,10 @@ function getFieldSelection(int $depth = 0): array
  *
  * The result maps original field names to a map of selections for that field, including aliases.
  * For each of those selections, you can find the following keys:
- * - "args" contains the passed arguments for this field/alias
- * - "selectionSet" contains potential nested fields of this field/alias. The structure is recursive from here.
+ * - "args" contains the passed arguments for this field/alias (not on an union inline fragment)
+ * - "type" contains the related Type instance found (will be the same for all aliases of a field)
+ * - "selectionSet" contains potential nested fields of this field/alias (only on ObjectType). The structure is recursive from here.
+ * - "unions" contains potential object types contained in an UnionType (only on UnionType). The structure is recursive from here and will go through the selectionSet of the object types.
  *
  * Example:
  * {
@@ -487,70 +489,100 @@ function getFieldSelection(int $depth = 0): array
  *     alias1: nested {
  *       nested1(myArg: 2, mySecondAg: "test")
  *     }
+ *     myUnion(myArg: 3) {
+ *       ...on Nested {
+ *         nested1(myArg: 4)
+ *       }
+ *       ...on MyCustomObject {
+ *         nested3
+ *       }
+ *     }
  *   }
  * }
  *
- * Given this ResolveInfo instance is a part of "root" field resolution, and $depth === 1,
+ * Given this ResolveInfo instance is a part of root field resolution,
+ * $depth === 1,
+ * and fields "nested" represents an ObjectType named "Nested",
  * this method will return:
  * [
  *     'id' => [
  *         'id' => [
  *              'args' => [],
+ *              'type' => GraphQL\Type\Definition\IntType Object ( ... )),
  *         ],
  *     ],
  *     'nested' => [
  *         'nested' => [
  *             'args' => [],
+ *             'type' => GraphQL\Type\Definition\ObjectType Object ( ... )),
  *             'selectionSet' => [
  *                 'nested1' => [
  *                     'nested1' => [
  *                          'args' => [
  *                              'myArg' => 1,
  *                          ],
+ *                          'type' => GraphQL\Type\Definition\StringType Object ( ... )),
  *                      ],
  *                      'nested1Bis' => [
  *                          'args' => [],
+ *                          'type' => GraphQL\Type\Definition\StringType Object ( ... )),
  *                      ],
  *                 ],
  *             ],
- *          ],
- *          'alias1' => [
- *             'args' => [],
- *             'selectionSet' => [
- *                  'nested1' => [
- *                      'nested1' => [
- *                           'args' => [
- *                               'myArg' => 2,
- *                               'mySecondAg' => "test,
- *                           ],
- *                      ],
- *                  ],
- *              ],
  *         ],
  *     ],
+ *     'alias1' => [
+ *         'alias1' => [
+ *             'args' => [],
+ *             'type' => GraphQL\Type\Definition\ObjectType Object ( ... )),
+ *             'selectionSet' => [
+ *                 'nested1' => [
+ *                     'nested1' => [
+ *                          'args' => [
+ *                              'myArg' => 2,
+ *                              'mySecondAg' => "test",
+ *                          ],
+ *                          'type' => GraphQL\Type\Definition\StringType Object ( ... )),
+ *                      ],
+ *                 ],
+ *             ],
+ *         ],
+ *     ],
+ *     'myUnion' => [
+ *         'myUnion' => [
+ *              'args' => [
+ *                  'myArg' => 3,
+ *              ],
+ *              'type' => GraphQL\Type\Definition\UnionType Object ( ... )),
+ *              'unions' => [
+ *                  'Nested' => [
+ *                      'type' => GraphQL\Type\Definition\ObjectType Object ( ... )),
+ *                      'selectionSet' => [
+ *                          'nested1' => [
+ *                              'nested1' => [
+ *                                  'args' => [
+ *                                      'myArg' => 4,
+ *                                  ],
+ *                                  'type' => GraphQL\Type\Definition\StringType Object ( ... )),
+ *                              ],
+ *                          ],
+ *                      ],
+ *                  ],
+ *                  'MyCustomObject' => [
+ *                       'type' => GraphQL\Tests\Type\TestClasses\MyCustomType Object ( ... )),
+ *                       'selectionSet' => [
+ *                           'nested3' => [
+ *                               'nested3' => [
+ *                                   'args' => [],
+ *                                   'type' => GraphQL\Type\Definition\StringType Object ( ... )),
+ *                               ],
+ *                           ],
+ *                       ],
+ *                   ],
+ *              ],
+ *          ],
+ *      ],
  * ]
- *
- * This method does not consider conditional typed fragments.
- * Use it with care for fields of interface and union types.
- * You can still alias the union type fields with the same name in order to extract their corresponding args.
- *
- * Example:
- * {
- *   root {
- *     id
- *     unionPerson {
- *       ...on Child {
- *         name
- *         birthdate(format: "d/m/Y")
- *       }
- *       ...on Adult {
- *         adultName: name
- *         adultBirthDate: birthdate(format: "Y-m-d")
- *         job
- *       }
- *     }
- *   }
- * }
  *
  * @param int $depth How many levels to include in the output beyond the first
  *
@@ -1049,71 +1081,71 @@ Note: this feature is experimental and may change or be removed in the
 future.)
 Those magic functions allow partial parsing:
 
-@method static NameNode name(Source|string $source, bool[] $options = [])
-@method static ExecutableDefinitionNode|TypeSystemDefinitionNode definition(Source|string $source, bool[] $options = [])
-@method static ExecutableDefinitionNode executableDefinition(Source|string $source, bool[] $options = [])
-@method static OperationDefinitionNode operationDefinition(Source|string $source, bool[] $options = [])
-@method static string operationType(Source|string $source, bool[] $options = [])
-@method static NodeList<VariableDefinitionNode> variableDefinitions(Source|string $source, bool[] $options = [])
-@method static VariableDefinitionNode variableDefinition(Source|string $source, bool[] $options = [])
-@method static VariableNode variable(Source|string $source, bool[] $options = [])
-@method static SelectionSetNode selectionSet(Source|string $source, bool[] $options = [])
-@method static mixed selection(Source|string $source, bool[] $options = [])
-@method static FieldNode field(Source|string $source, bool[] $options = [])
-@method static NodeList<ArgumentNode> arguments(Source|string $source, bool[] $options = [])
-@method static NodeList<ArgumentNode> constArguments(Source|string $source, bool[] $options = [])
-@method static ArgumentNode argument(Source|string $source, bool[] $options = [])
-@method static ArgumentNode constArgument(Source|string $source, bool[] $options = [])
-@method static FragmentSpreadNode|InlineFragmentNode fragment(Source|string $source, bool[] $options = [])
-@method static FragmentDefinitionNode fragmentDefinition(Source|string $source, bool[] $options = [])
-@method static NameNode fragmentName(Source|string $source, bool[] $options = [])
-@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|NullValueNode|ObjectValueNode|StringValueNode|VariableNode valueLiteral(Source|string $source, bool[] $options = [])
-@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|NullValueNode|ObjectValueNode|StringValueNode constValueLiteral(Source|string $source, bool[] $options = [])
-@method static StringValueNode stringLiteral(Source|string $source, bool[] $options = [])
-@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|StringValueNode constValue(Source|string $source, bool[] $options = [])
-@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|ObjectValueNode|StringValueNode|VariableNode variableValue(Source|string $source, bool[] $options = [])
-@method static ListValueNode array(Source|string $source, bool[] $options = [])
-@method static ListValueNode constArray(Source|string $source, bool[] $options = [])
-@method static ObjectValueNode object(Source|string $source, bool[] $options = [])
-@method static ObjectValueNode constObject(Source|string $source, bool[] $options = [])
-@method static ObjectFieldNode objectField(Source|string $source, bool[] $options = [])
-@method static ObjectFieldNode constObjectField(Source|string $source, bool[] $options = [])
-@method static NodeList<DirectiveNode> directives(Source|string $source, bool[] $options = [])
-@method static NodeList<DirectiveNode> constDirectives(Source|string $source, bool[] $options = [])
-@method static DirectiveNode directive(Source|string $source, bool[] $options = [])
-@method static DirectiveNode constDirective(Source|string $source, bool[] $options = [])
-@method static ListTypeNode|NamedTypeNode|NonNullTypeNode typeReference(Source|string $source, bool[] $options = [])
-@method static NamedTypeNode namedType(Source|string $source, bool[] $options = [])
-@method static TypeSystemDefinitionNode typeSystemDefinition(Source|string $source, bool[] $options = [])
-@method static StringValueNode|null description(Source|string $source, bool[] $options = [])
-@method static SchemaDefinitionNode schemaDefinition(Source|string $source, bool[] $options = [])
-@method static OperationTypeDefinitionNode operationTypeDefinition(Source|string $source, bool[] $options = [])
-@method static ScalarTypeDefinitionNode scalarTypeDefinition(Source|string $source, bool[] $options = [])
-@method static ObjectTypeDefinitionNode objectTypeDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<NamedTypeNode> implementsInterfaces(Source|string $source, bool[] $options = [])
-@method static NodeList<FieldDefinitionNode> fieldsDefinition(Source|string $source, bool[] $options = [])
-@method static FieldDefinitionNode fieldDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<InputValueDefinitionNode> argumentsDefinition(Source|string $source, bool[] $options = [])
-@method static InputValueDefinitionNode inputValueDefinition(Source|string $source, bool[] $options = [])
-@method static InterfaceTypeDefinitionNode interfaceTypeDefinition(Source|string $source, bool[] $options = [])
-@method static UnionTypeDefinitionNode unionTypeDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<NamedTypeNode> unionMemberTypes(Source|string $source, bool[] $options = [])
-@method static EnumTypeDefinitionNode enumTypeDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<EnumValueDefinitionNode> enumValuesDefinition(Source|string $source, bool[] $options = [])
-@method static EnumValueDefinitionNode enumValueDefinition(Source|string $source, bool[] $options = [])
-@method static InputObjectTypeDefinitionNode inputObjectTypeDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<InputValueDefinitionNode> inputFieldsDefinition(Source|string $source, bool[] $options = [])
-@method static TypeExtensionNode typeExtension(Source|string $source, bool[] $options = [])
-@method static SchemaExtensionNode schemaTypeExtension(Source|string $source, bool[] $options = [])
-@method static ScalarTypeExtensionNode scalarTypeExtension(Source|string $source, bool[] $options = [])
-@method static ObjectTypeExtensionNode objectTypeExtension(Source|string $source, bool[] $options = [])
-@method static InterfaceTypeExtensionNode interfaceTypeExtension(Source|string $source, bool[] $options = [])
-@method static UnionTypeExtensionNode unionTypeExtension(Source|string $source, bool[] $options = [])
-@method static EnumTypeExtensionNode enumTypeExtension(Source|string $source, bool[] $options = [])
-@method static InputObjectTypeExtensionNode inputObjectTypeExtension(Source|string $source, bool[] $options = [])
-@method static DirectiveDefinitionNode directiveDefinition(Source|string $source, bool[] $options = [])
-@method static NodeList<NameNode> directiveLocations(Source|string $source, bool[] $options = [])
-@method static NameNode directiveLocation(Source|string $source, bool[] $options = [])
+@method static NameNode name(Source|string $source, ParserOptions $options = [])
+@method static ExecutableDefinitionNode|TypeSystemDefinitionNode definition(Source|string $source, ParserOptions $options = [])
+@method static ExecutableDefinitionNode executableDefinition(Source|string $source, ParserOptions $options = [])
+@method static OperationDefinitionNode operationDefinition(Source|string $source, ParserOptions $options = [])
+@method static string operationType(Source|string $source, ParserOptions $options = [])
+@method static NodeList<VariableDefinitionNode> variableDefinitions(Source|string $source, ParserOptions $options = [])
+@method static VariableDefinitionNode variableDefinition(Source|string $source, ParserOptions $options = [])
+@method static VariableNode variable(Source|string $source, ParserOptions $options = [])
+@method static SelectionSetNode selectionSet(Source|string $source, ParserOptions $options = [])
+@method static mixed selection(Source|string $source, ParserOptions $options = [])
+@method static FieldNode field(Source|string $source, ParserOptions $options = [])
+@method static NodeList<ArgumentNode> arguments(Source|string $source, ParserOptions $options = [])
+@method static NodeList<ArgumentNode> constArguments(Source|string $source, ParserOptions $options = [])
+@method static ArgumentNode argument(Source|string $source, ParserOptions $options = [])
+@method static ArgumentNode constArgument(Source|string $source, ParserOptions $options = [])
+@method static FragmentSpreadNode|InlineFragmentNode fragment(Source|string $source, ParserOptions $options = [])
+@method static FragmentDefinitionNode fragmentDefinition(Source|string $source, ParserOptions $options = [])
+@method static NameNode fragmentName(Source|string $source, ParserOptions $options = [])
+@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|NullValueNode|ObjectValueNode|StringValueNode|VariableNode valueLiteral(Source|string $source, ParserOptions $options = [])
+@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|NullValueNode|ObjectValueNode|StringValueNode constValueLiteral(Source|string $source, ParserOptions $options = [])
+@method static StringValueNode stringLiteral(Source|string $source, ParserOptions $options = [])
+@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|StringValueNode constValue(Source|string $source, ParserOptions $options = [])
+@method static BooleanValueNode|EnumValueNode|FloatValueNode|IntValueNode|ListValueNode|ObjectValueNode|StringValueNode|VariableNode variableValue(Source|string $source, ParserOptions $options = [])
+@method static ListValueNode array(Source|string $source, ParserOptions $options = [])
+@method static ListValueNode constArray(Source|string $source, ParserOptions $options = [])
+@method static ObjectValueNode object(Source|string $source, ParserOptions $options = [])
+@method static ObjectValueNode constObject(Source|string $source, ParserOptions $options = [])
+@method static ObjectFieldNode objectField(Source|string $source, ParserOptions $options = [])
+@method static ObjectFieldNode constObjectField(Source|string $source, ParserOptions $options = [])
+@method static NodeList<DirectiveNode> directives(Source|string $source, ParserOptions $options = [])
+@method static NodeList<DirectiveNode> constDirectives(Source|string $source, ParserOptions $options = [])
+@method static DirectiveNode directive(Source|string $source, ParserOptions $options = [])
+@method static DirectiveNode constDirective(Source|string $source, ParserOptions $options = [])
+@method static ListTypeNode|NamedTypeNode|NonNullTypeNode typeReference(Source|string $source, ParserOptions $options = [])
+@method static NamedTypeNode namedType(Source|string $source, ParserOptions $options = [])
+@method static TypeSystemDefinitionNode typeSystemDefinition(Source|string $source, ParserOptions $options = [])
+@method static StringValueNode|null description(Source|string $source, ParserOptions $options = [])
+@method static SchemaDefinitionNode schemaDefinition(Source|string $source, ParserOptions $options = [])
+@method static OperationTypeDefinitionNode operationTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static ScalarTypeDefinitionNode scalarTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static ObjectTypeDefinitionNode objectTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<NamedTypeNode> implementsInterfaces(Source|string $source, ParserOptions $options = [])
+@method static NodeList<FieldDefinitionNode> fieldsDefinition(Source|string $source, ParserOptions $options = [])
+@method static FieldDefinitionNode fieldDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<InputValueDefinitionNode> argumentsDefinition(Source|string $source, ParserOptions $options = [])
+@method static InputValueDefinitionNode inputValueDefinition(Source|string $source, ParserOptions $options = [])
+@method static InterfaceTypeDefinitionNode interfaceTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static UnionTypeDefinitionNode unionTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<NamedTypeNode> unionMemberTypes(Source|string $source, ParserOptions $options = [])
+@method static EnumTypeDefinitionNode enumTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<EnumValueDefinitionNode> enumValuesDefinition(Source|string $source, ParserOptions $options = [])
+@method static EnumValueDefinitionNode enumValueDefinition(Source|string $source, ParserOptions $options = [])
+@method static InputObjectTypeDefinitionNode inputObjectTypeDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<InputValueDefinitionNode> inputFieldsDefinition(Source|string $source, ParserOptions $options = [])
+@method static TypeExtensionNode typeExtension(Source|string $source, ParserOptions $options = [])
+@method static SchemaExtensionNode schemaTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static ScalarTypeExtensionNode scalarTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static ObjectTypeExtensionNode objectTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static InterfaceTypeExtensionNode interfaceTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static UnionTypeExtensionNode unionTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static EnumTypeExtensionNode enumTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static InputObjectTypeExtensionNode inputObjectTypeExtension(Source|string $source, ParserOptions $options = [])
+@method static DirectiveDefinitionNode directiveDefinition(Source|string $source, ParserOptions $options = [])
+@method static NodeList<NameNode> directiveLocations(Source|string $source, ParserOptions $options = [])
+@method static NameNode directiveLocation(Source|string $source, ParserOptions $options = [])
 
 @see \GraphQL\Tests\Language\ParserTest
 

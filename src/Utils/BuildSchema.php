@@ -220,7 +220,7 @@ class BuildSchema
             (($this->options['customTypeLoader']??null) instanceof CustomTypeLoaderInterface ? $this->options['customTypeLoader'] : null)
         );
 
-        $directives = \array_map(
+        $directives = array_map(
             [$definitionBuilder, 'buildDirective'],
             $directiveDefs
         );
@@ -261,7 +261,7 @@ class BuildSchema
                 ->setTypeLoader(static fn (string $name): ?Type => $definitionBuilder->maybeBuildType($name))
                 ->setDirectives($directives)
                 ->setAstNode($schemaDef)
-                ->setTypes(fn (): array => \array_map(
+                ->setTypes(fn (): array => array_map(
                     static fn (TypeDefinitionNode $def): Type => $definitionBuilder->buildType($def->getName()->value),
                     $typeDefinitionsMap,
                 ))
