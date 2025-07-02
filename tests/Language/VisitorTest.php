@@ -3,11 +3,15 @@
 namespace GraphQL\Tests\Language;
 
 use GraphQL\Language\AST\DocumentNode;
+use GraphQL\Language\AST\FieldDefinitionNode;
 use GraphQL\Language\AST\FieldNode;
+use GraphQL\Language\AST\InputObjectTypeDefinitionNode;
+use GraphQL\Language\AST\InputValueDefinitionNode;
 use GraphQL\Language\AST\NameNode;
 use GraphQL\Language\AST\Node;
 use GraphQL\Language\AST\NodeKind;
 use GraphQL\Language\AST\NodeList;
+use GraphQL\Language\AST\ObjectTypeDefinitionNode;
 use GraphQL\Language\AST\OperationDefinitionNode;
 use GraphQL\Language\AST\SelectionNode;
 use GraphQL\Language\AST\SelectionSetNode;
@@ -115,11 +119,11 @@ final class VisitorTest extends ValidatorTestCase
         Visitor::visit(
             $ast,
             [
-                'enter' => function ($node, $key, $parent, $path) use ($ast, &$visited): void {
+                'enter' => function (Node $node, $key, $parent, array $path) use ($ast, &$visited): void {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['enter', $path];
                 },
-                'leave' => function ($node, $key, $parent, $path) use ($ast, &$visited): void {
+                'leave' => function (Node $node, $key, $parent, array $path) use ($ast, &$visited): void {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['leave', $path];
                 },
@@ -149,7 +153,7 @@ final class VisitorTest extends ValidatorTestCase
         $visitedNodes = [];
 
         Visitor::visit($ast, [
-            'enter' => static function ($node, $key, $parent, $path, $ancestors) use (&$visitedNodes): void {
+            'enter' => static function (Node $node, $key, $parent, array $path, array $ancestors) use (&$visitedNodes): void {
                 $inArray = is_numeric($key);
                 if ($inArray) {
                     $visitedNodes[] = $parent;
@@ -160,7 +164,7 @@ final class VisitorTest extends ValidatorTestCase
                 $expectedAncestors = array_slice($visitedNodes, 0, -2);
                 self::assertEquals($expectedAncestors, $ancestors);
             },
-            'leave' => static function ($node, $key, $parent, $path, $ancestors) use (&$visitedNodes): void {
+            'leave' => static function (Node $node, $key, $parent, array $path, array $ancestors) use (&$visitedNodes): void {
                 $expectedAncestors = array_slice($visitedNodes, 0, -2);
                 self::assertEquals($expectedAncestors, $ancestors);
 
@@ -363,7 +367,7 @@ final class VisitorTest extends ValidatorTestCase
         Visitor::visit(
             $ast,
             [
-                'enter' => function (Node $node) use (&$visited, $ast): ?VisitorOperation {
+                'enter' => function ($node) use (&$visited, $ast): ?VisitorOperation {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['enter', $node->kind, property_exists($node, 'value') ? $node->value : null];
                     if ($node instanceof FieldNode && $node->name->value === 'b') {
@@ -372,7 +376,7 @@ final class VisitorTest extends ValidatorTestCase
 
                     return null;
                 },
-                'leave' => function (Node $node) use (&$visited, $ast): void {
+                'leave' => function ($node) use (&$visited, $ast): void {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['leave', $node->kind, property_exists($node, 'value') ? $node->value : null];
                 },
@@ -408,7 +412,7 @@ final class VisitorTest extends ValidatorTestCase
         Visitor::visit(
             $ast,
             [
-                'enter' => function (Node $node) use (&$visited, $ast): ?VisitorOperation {
+                'enter' => function ($node) use (&$visited, $ast): ?VisitorOperation {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['enter', $node->kind, property_exists($node, 'value') ? $node->value : null];
                     if ($node instanceof NameNode && $node->value === 'x') {
@@ -417,7 +421,7 @@ final class VisitorTest extends ValidatorTestCase
 
                     return null;
                 },
-                'leave' => function (Node $node) use (&$visited, $ast): void {
+                'leave' => function ($node) use (&$visited, $ast): void {
                     $this->checkVisitorFnArgs($ast, func_get_args());
                     $visited[] = ['leave', $node->kind, property_exists($node, 'value') ? $node->value : null];
                 },
@@ -1683,5 +1687,49 @@ final class VisitorTest extends ValidatorTestCase
             ],
             $visited
         );
+    }
+
+    public function testAncestorsForInputValueDefinition(): void
+    {
+        $ast = Parser::parse('
+            input UserInput {
+              alwaysTwoItems: [Int]
+            }
+        ');
+
+        Visitor::visit($ast, [
+            NodeKind::LIST_TYPE => [
+                'enter' => function (Node $node, $key, $parent, $path, $ancestors): void {
+                    self::assertInstanceOf(InputValueDefinitionNode::class, $parent);
+                    self::assertCount(4, $ancestors);
+                    self::assertInstanceOf(DocumentNode::class, $ancestors[0]);
+                    self::assertInstanceOf(NodeList::class, $ancestors[1]);
+                    self::assertInstanceOf(InputObjectTypeDefinitionNode::class, $ancestors[2]);
+                    self::assertInstanceOf(NodeList::class, $ancestors[3]);
+                },
+            ],
+        ]);
+    }
+
+    public function testAncestorsForObjectTypeDefinition(): void
+    {
+        $ast = Parser::parse('
+            type User {
+              alwaysTwoItems: [Int]
+            }
+        ');
+
+        Visitor::visit($ast, [
+            NodeKind::LIST_TYPE => [
+                'enter' => function (Node $node, $key, $parent, $path, $ancestors): void {
+                    self::assertInstanceOf(FieldDefinitionNode::class, $parent);
+                    self::assertCount(4, $ancestors);
+                    self::assertInstanceOf(DocumentNode::class, $ancestors[0]);
+                    self::assertInstanceOf(NodeList::class, $ancestors[1]);
+                    self::assertInstanceOf(ObjectTypeDefinitionNode::class, $ancestors[2]);
+                    self::assertInstanceOf(NodeList::class, $ancestors[3]);
+                },
+            ],
+        ]);
     }
 }
