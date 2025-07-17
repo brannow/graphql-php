@@ -272,11 +272,12 @@ final class BuildSchemaTest extends TestCaseBase
     {
         $schema = BuildSchema::buildAST(Parser::parse('type Query'));
 
-        // TODO switch to 4 when adding @specifiedBy - see https://github.com/webonyx/graphql-php/issues/1140
-        self::assertCount(3, $schema->getDirectives());
+        // TODO switch to 5 when adding @specifiedBy - see https://github.com/webonyx/graphql-php/issues/1140
+        self::assertCount(4, $schema->getDirectives());
         self::assertSame(Directive::skipDirective(), $schema->getDirective('skip'));
         self::assertSame(Directive::includeDirective(), $schema->getDirective('include'));
         self::assertSame(Directive::deprecatedDirective(), $schema->getDirective('deprecated'));
+        self::assertSame(Directive::oneOfDirective(), $schema->getDirective('oneOf'));
 
         self::markTestIncomplete('See https://github.com/webonyx/graphql-php/issues/1140');
         self::assertSame(Directive::specifiedByDirective(), $schema->getDirective('specifiedBy'));
@@ -292,10 +293,11 @@ final class BuildSchemaTest extends TestCaseBase
             directive @specifiedBy on FIELD_DEFINITION
         '));
 
-        self::assertCount(4, $schema->getDirectives());
+        self::assertCount(5, $schema->getDirectives());
         self::assertNotEquals(Directive::skipDirective(), $schema->getDirective('skip'));
         self::assertNotEquals(Directive::includeDirective(), $schema->getDirective('include'));
         self::assertNotEquals(Directive::deprecatedDirective(), $schema->getDirective('deprecated'));
+        self::assertSame(Directive::oneOfDirective(), $schema->getDirective('oneOf'));
 
         self::markTestIncomplete('See https://github.com/webonyx/graphql-php/issues/1140');
         self::assertNotEquals(Directive::specifiedByDirective(), $schema->getDirective('specifiedBy'));
@@ -310,12 +312,13 @@ final class BuildSchemaTest extends TestCaseBase
             GRAPHQL;
         $schema = BuildSchema::buildAST(Parser::parse($sdl));
 
-        // TODO switch to 5 when adding @specifiedBy - see https://github.com/webonyx/graphql-php/issues/1140
-        self::assertCount(4, $schema->getDirectives());
+        // TODO switch to 6 when adding @specifiedBy - see https://github.com/webonyx/graphql-php/issues/1140
+        self::assertCount(5, $schema->getDirectives());
         self::assertNotNull($schema->getDirective('foo'));
         self::assertNotNull($schema->getDirective('skip'));
         self::assertNotNull($schema->getDirective('include'));
         self::assertNotNull($schema->getDirective('deprecated'));
+        self::assertNotNull($schema->getDirective('oneOf'));
 
         self::markTestIncomplete('See https://github.com/webonyx/graphql-php/issues/1140');
         self::assertNotNull($schema->getDirective('specifiedBy'));
@@ -1032,6 +1035,39 @@ final class BuildSchemaTest extends TestCaseBase
               first: String
               second: Int
               third: Float
+            }
+            GRAPHQL;
+
+        self::assertSame($expectedSomeInputSDL, SchemaPrinter::printType($someInput));
+        self::assertSame($inputSDL, $this->printAllASTNodes($someInput));
+    }
+
+    /** @see it('Correctly extend input object type with @oneOf directive') */
+    public function testCorrectlyExtendInputObjectTypeWithOneOfDirective(): void
+    {
+        $inputSDL = <<<'GRAPHQL'
+            input SomeInput {
+              first: String
+            }
+            
+            extend input SomeInput @oneOf {
+              second: Int
+            }
+            
+            GRAPHQL;
+
+        $schema = BuildSchema::build($inputSDL);
+
+        $someInput = $schema->getType('SomeInput');
+        assert($someInput instanceof InputObjectType);
+
+        // Verify that the @oneOf directive from the extension is properly applied
+        self::assertTrue($someInput->isOneOf());
+
+        $expectedSomeInputSDL = <<<'GRAPHQL'
+            input SomeInput @oneOf {
+              first: String
+              second: Int
             }
             GRAPHQL;
 

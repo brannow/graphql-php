@@ -95,12 +95,10 @@ class BuildSchema
      * document.
      *
      * @param DocumentNode|Source|string $source
+     * @param array<string, bool> $options
      *
      * @phpstan-param TypeConfigDecorator|null $typeConfigDecorator
      * @phpstan-param FieldConfigDecorator|null $fieldConfigDecorator
-     *
-     * @param array<string, bool> $options
-     *
      * @phpstan-param BuildSchemaOptions $options
      *
      * @api
@@ -132,11 +130,10 @@ class BuildSchema
      * Given that AST it constructs a @see \GraphQL\Type\Schema. The resulting schema
      * has no resolve methods, so execution will use default resolvers.
      *
-     * @phpstan-param TypeConfigDecorator|null $typeConfigDecorator
-     * @phpstan-param FieldConfigDecorator|null $fieldConfigDecorator
-     *
      * @param array<string, bool> $options
      *
+     * @phpstan-param TypeConfigDecorator|null $typeConfigDecorator
+     * @phpstan-param FieldConfigDecorator|null $fieldConfigDecorator
      * @phpstan-param BuildSchemaOptions $options
      *
      * @api
@@ -239,6 +236,9 @@ class BuildSchema
         }
         if (! isset($directivesByName['deprecated'])) {
             $directives[] = Directive::deprecatedDirective();
+        }
+        if (! isset($directivesByName['oneOf'])) {
+            $directives[] = Directive::oneOfDirective();
         }
 
         // Note: While this could make early assertions to get the correctly
