@@ -43,7 +43,11 @@ use GraphQL\Validator\Rules\KnownDirectives;
 /** @phpstan-import-type UnnamedFieldDefinitionConfig from FieldDefinition */
 final class SchemaExtenderTest extends TestCaseBase
 {
-    /** @param NamedType|Schema $obj */
+    /**
+     * @param NamedType|Schema $obj
+     *
+     * @throws \JsonException
+     */
     private function printExtensionNodes($obj): string
     {
         assert(isset($obj->extensionASTNodes));
@@ -92,6 +96,8 @@ final class SchemaExtenderTest extends TestCaseBase
     /**
      * graphql-js uses printASTNode() everywhere, but our Schema doesn't have astNode property,
      * hence this helper method that calls getAstNode() instead.
+     *
+     * @throws \JsonException
      */
     private function printASTSchema(Schema $schema): string
     {
@@ -1228,6 +1234,38 @@ GRAPHQL,
 
               interface NewInterface {
                 newField: String
+              }
+              GRAPHQL,
+            self::printSchemaChanges($schema, $extendedSchema)
+        );
+    }
+
+    /** @see it('extends input but keeps isOneOf') */
+    public function testExtendsInputObjectsAndKeepsIsOneOf(): void
+    {
+        $schema = BuildSchema::build('
+          input Foo @oneOf {
+            barA: String
+            barB: String
+          }
+          type Query {
+            someQuery(args: Foo!): Boolean
+          }
+        ');
+        $extendAST = Parser::parse('
+          extend input Foo {
+            barC: String
+          }
+        ');
+        $extendedSchema = SchemaExtender::extend($schema, $extendAST);
+
+        self::assertEmpty($extendedSchema->validate());
+        self::assertSame(
+            <<<GRAPHQL
+              input Foo @oneOf {
+                barA: String
+                barB: String
+                barC: String
               }
               GRAPHQL,
             self::printSchemaChanges($schema, $extendedSchema)
