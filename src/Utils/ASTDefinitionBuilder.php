@@ -24,6 +24,7 @@ use GraphQL\Language\AST\ObjectTypeDefinitionNode;
 use GraphQL\Language\AST\ObjectTypeExtensionNode;
 use GraphQL\Language\AST\ScalarTypeDefinitionNode;
 use GraphQL\Language\AST\ScalarTypeExtensionNode;
+use GraphQL\Language\AST\StringValueNode;
 use GraphQL\Language\AST\TypeDefinitionNode;
 use GraphQL\Language\AST\TypeExtensionNode;
 use GraphQL\Language\AST\TypeNode;
@@ -417,7 +418,6 @@ class ASTDefinitionBuilder
      * @param EnumValueDefinitionNode|FieldDefinitionNode|InputValueDefinitionNode $node
      *
      * @throws \Exception
-     * @throws \ReflectionException
      * @throws InvariantViolation
      */
     private function getDeprecationReason(Node $node): ?string
@@ -428,6 +428,33 @@ class ASTDefinitionBuilder
         );
 
         return $deprecated['reason'] ?? null;
+    }
+
+    /**
+     * Returns the specifiedBy URL from a scalar type's definition and extension directives,
+     * reading directly from the AST to safely handle custom @specifiedBy directive definitions
+     * with different argument shapes.
+     *
+     * @param array<ScalarTypeExtensionNode> $extensionNodes
+     */
+    private function getSpecifiedByURL(ScalarTypeDefinitionNode $def, array $extensionNodes = []): ?string
+    {
+        foreach ([$def, ...$extensionNodes] as $node) {
+            foreach ($node->directives as $directive) {
+                if ($directive->name->value !== Directive::SPECIFIED_BY_NAME) {
+                    continue;
+                }
+
+                foreach ($directive->arguments as $argument) {
+                    if ($argument->name->value === Directive::URL_ARGUMENT_NAME
+                        && $argument->value instanceof StringValueNode) {
+                        return $argument->value->value;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -552,7 +579,8 @@ class ASTDefinitionBuilder
             'description' => $def->description->value ?? null,
             'serialize' => static fn ($value) => $value,
             'astNode' => $def,
-            'extensionASTNodes' => $extensionASTNodes
+            'extensionASTNodes' => $extensionASTNodes,
+            'specifiedByURL' => $this->getSpecifiedByURL($def, $extensionASTNodes),
         ];
 
         if ($this->customTypeLoader && $this->customTypeLoader->canProvideCustomType($name)) {
